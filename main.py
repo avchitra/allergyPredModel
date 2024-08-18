@@ -1,12 +1,12 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import Dense
-from tensorflow.keras.utils import to_categorical
+from keras.models import Sequential
+from keras.layers import Dense
+from keras.utils import to_categorical
 
 # Load and preprocess the data
-df = pd.read_csv('your_data.csv')
+df = pd.read_csv('allergyPredModel/data.csv')
 
 # Create a binary target variable
 df['HAS_ALLERGY'] = df[['SHELLFISH_ALG_START', 'FISH_ALG_START', 'MILK_ALG_START', 
