@@ -1,7 +1,7 @@
 import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import StandardScaler
-from keras.models import Sequential
+from keras.models import Sequential, load_model
 from keras.layers import Dense
 from keras.utils import to_categorical
 
@@ -63,3 +63,6 @@ y_pred = (y_pred_probs > 0.5).astype(int).flatten()
 # Evaluate the model
 print(f'Accuracy: {accuracy_score(y_test, y_pred)}')
 print(classification_report(y_test, y_pred))
+
+
+model.save('allergy_model.h5')
