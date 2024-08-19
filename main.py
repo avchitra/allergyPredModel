@@ -1,68 +1,73 @@
 import pandas as pd
-from sklearn.model_selection import train_test_split
+import numpy as np
 from sklearn.preprocessing import StandardScaler
-from keras.models import Sequential, load_model
-from keras.layers import Dense
-from keras.utils import to_categorical
+from keras.models import load_model
 
-# Load and preprocess the data
-df = pd.read_csv('allergyPredModel/data.csv')
+# Load the saved model
+model = load_model('allergy_model.h5')
 
-# Create a binary target variable
-df['HAS_ALLERGY'] = df[['SHELLFISH_ALG_START', 'FISH_ALG_START', 'MILK_ALG_START', 
-                        'SOY_ALG_START', 'EGG_ALG_START', 'WHEAT_ALG_START', 
-                        'PEANUT_ALG_START', 'SESAME_ALG_START', 'TREENUT_ALG_START', 
-                        'WALNUT_ALG_START', 'PECAN_ALG_START', 'PISTACH_ALG_START', 
-                        'ALMOND_ALG_START', 'BRAZIL_ALG_START', 'HAZELNUT_ALG_START', 
-                        'CASHEW_ALG_START']].notna().any(axis=1).astype(int)
+# Load the test data
+test_data = pd.read_csv('Input.csv')
 
-# Drop original allergy columns
-df.drop(columns=['SHELLFISH_ALG_START', 'FISH_ALG_START', 'MILK_ALG_START', 
-                 'SOY_ALG_START', 'EGG_ALG_START', 'WHEAT_ALG_START', 
-                 'PEANUT_ALG_START', 'SESAME_ALG_START', 'TREENUT_ALG_START', 
-                 'WALNUT_ALG_START', 'PECAN_ALG_START', 'PISTACH_ALG_START', 
-                 'ALMOND_ALG_START', 'BRAZIL_ALG_START', 'HAZELNUT_ALG_START', 
-                 'CASHEW_ALG_START'], inplace=True)
+# Preprocess the test data
+def preprocess_data(df):
+    # Create a binary target variable (if present in the data)
+    allergy_cols = ['SHELLFISH_ALG_START', 'FISH_ALG_START', 'MILK_ALG_START', 
+                    'SOY_ALG_START', 'EGG_ALG_START', 'WHEAT_ALG_START', 
+                    'PEANUT_ALG_START', 'SESAME_ALG_START', 'TREENUT_ALG_START', 
+                    'WALNUT_ALG_START', 'PECAN_ALG_START', 'PISTACH_ALG_START', 
+                    'ALMOND_ALG_START', 'BRAZIL_ALG_START', 'HAZELNUT_ALG_START', 
+                    'CASHEW_ALG_START']
+    
+    if all(col in df.columns for col in allergy_cols):
+        df['HAS_ALLERGY'] = df[allergy_cols].notna().any(axis=1).astype(int)
+        df = df.drop(columns=allergy_cols)
+    
+    # Convert categorical variables to dummy variables
+    cat_cols = ['GENDER_FACTOR', 'RACE_FACTOR', 'ETHNICITY_FACTOR', 'PAYER_FACTOR']
+    df = pd.get_dummies(df, columns=cat_cols, drop_first=True)
+    
+    return df
 
-# Convert categorical variables to dummy variables
-df = pd.get_dummies(df, columns=['GENDER_FACTOR', 'RACE_FACTOR', 'ETHNICITY_FACTOR', 'PAYER_FACTOR'], drop_first=True)
+# Preprocess the test data
+test_data_processed = preprocess_data(test_data)
 
-# Define features and target
-X = df.drop(columns=['HAS_ALLERGY'])
-y = df['HAS_ALLERGY']
+# Select features (excluding 'HAS_ALLERGY' if it exists)
+X_test = test_data_processed.drop(columns=['HAS_ALLERGY', 'SUBJECT_ID'], errors='ignore')
+
+# Print column names and shape for debugging
+print("Columns in X_test:")
+print(X_test.columns)
+print(f"Shape of X_test: {X_test.shape}")
 
 # Normalize the features
 scaler = StandardScaler()
-X_scaled = scaler.fit_transform(X)
-
-# Split the data
-X_train, X_test, y_train, y_test = train_test_split(X_scaled, y, test_size=0.3, random_state=42)
-
-
-# Define the model
-model = Sequential()
-model.add(Dense(64, input_dim=X_train.shape[1], activation='relu'))
-model.add(Dense(32, activation='relu'))
-model.add(Dense(1, activation='sigmoid'))
-
-# Compile the model
-model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-
-# Summary of the model
-model.summary()
-
-# Train the model
-history = model.fit(X_train, y_train, epochs=20, batch_size=32, validation_split=0.2, verbose=1)
-
-from sklearn.metrics import accuracy_score, classification_report
+X_test_scaled = scaler.fit_transform(X_test)
 
 # Make predictions
-y_pred_probs = model.predict(X_test)
-y_pred = (y_pred_probs > 0.5).astype(int).flatten()
+try:
+    predictions_prob = model.predict(X_test_scaled)
+    predictions = (predictions_prob > 0.5).astype(int).flatten()
 
-# Evaluate the model
-print(f'Accuracy: {accuracy_score(y_test, y_pred)}')
-print(classification_report(y_test, y_pred))
+    # Add predictions to the original dataframe
+    test_data['Predicted_Allergy'] = predictions
 
+    # Print results
+    print("\nPredictions:")
+    print(test_data[['SUBJECT_ID', 'Predicted_Allergy']])
 
-model.save('allergy_model.h5')
+    # If you want to save the results
+    test_data.to_csv('predictions_output.csv', index=False)
+    print("\nPredictions have been added to the dataframe and saved to 'predictions_output.csv'")
+
+    # If 'HAS_ALLERGY' column exists in the input, calculate accuracy
+    if 'HAS_ALLERGY' in test_data.columns:
+        from sklearn.metrics import accuracy_score
+        actual = test_data['HAS_ALLERGY']
+        accuracy = accuracy_score(actual, predictions)
+        print(f"\nAccuracy on test data: {accuracy:.2f}")
+
+except Exception as e:
+    print(f"An error occurred during prediction: {str(e)}")
+    print(f"Model input shape: {model.input_shape}")
+    print(f"X_test_scaled shape: {X_test_scaled.shape}")
